@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 from pathlib import Path
 
@@ -13,15 +14,15 @@ logger = logging.getLogger(__name__)
 SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx"}
 
 
-def extract_text(file_path: Path) -> str:
-    """Extract plain text from TXT, PDF (selectable text), or DOCX files."""
-    suffix = file_path.suffix.lower()
+def extract_text_from_bytes(filename: str, data: bytes) -> str:
+    """Extract plain text from raw bytes for TXT, PDF (selectable text), or DOCX files."""
+    suffix = Path(filename).suffix.lower()
 
     if suffix == ".txt":
-        return file_path.read_text(encoding="utf-8", errors="replace").strip()
+        return data.decode("utf-8", errors="replace").strip()
 
     if suffix == ".pdf":
-        reader = PdfReader(str(file_path))
+        reader = PdfReader(io.BytesIO(data))
         pages: list[str] = []
         for page in reader.pages:
             page_text = (page.extract_text() or "").strip()
@@ -32,19 +33,24 @@ def extract_text(file_path: Path) -> str:
             logger.warning(
                 "No selectable text extracted from '%s'. "
                 "Scanned PDFs require OCR, which is not implemented.",
-                file_path.name,
+                filename,
             )
         return extracted
 
     if suffix == ".docx":
-        doc = DocxDocument(str(file_path))
+        doc = DocxDocument(io.BytesIO(data))
         paragraphs = [p.text.strip() for p in doc.paragraphs if p.text and p.text.strip()]
         return "\n\n".join(paragraphs).strip()
 
     raise ValueError(
-        f"Unsupported file type '{suffix}' for '{file_path}'. "
+        f"Unsupported file type '{suffix}' for '{filename}'. "
         f"Supported formats: {sorted(SUPPORTED_EXTENSIONS)}"
     )
+
+
+def extract_text(file_path: Path) -> str:
+    """Extract plain text from a TXT, PDF, or DOCX file on disk."""
+    return extract_text_from_bytes(file_path.name, file_path.read_bytes())
 
 
 def chunk_text(
@@ -87,6 +93,25 @@ def chunk_text(
     return chunks
 
 
+def chunk_uploaded_file(
+    filename: str,
+    data: bytes,
+    chunk_size: int = 180,
+    overlap: int = 30,
+) -> list[Chunk]:
+    """Extract text and produce chunks from an uploaded file's bytes."""
+    clean_name = Path(filename).name
+    text = extract_text_from_bytes(clean_name, data)
+    if not text:
+        return []
+    return chunk_text(
+        text=text,
+        source=clean_name,
+        chunk_size=chunk_size,
+        overlap=overlap,
+    )
+
+
 def discover_files(target: Path) -> list[Path]:
     """Return a sorted list of supported document paths from a file or directory."""
     if not target.exists():
@@ -97,12 +122,11 @@ def discover_files(target: Path) -> list[Path]:
             raise ValueError(f"Unsupported file extension: {target.suffix}")
         return [target]
 
-    files = [
+    return [
         p
         for p in sorted(target.rglob("*"))
         if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
     ]
-    return files
 
 
 def load_and_chunk_path(
