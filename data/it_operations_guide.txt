@@ -1,0 +1,8 @@
+1. Remote Access and VPN
+Employees working outside the corporate office must connect through the WireGuard Corporate VPN client before accessing internal Git repositories, staging environments, or databases. Split tunneling is disabled on production profiles.
+
+2. Software Installation Requests
+Standard developer tools on the pre-approved catalogue may be installed through the internal self-service portal. Any third-party binary or browser extension outside the catalogue requires a ticket filed with the IT Service Desk and security review approval before installation.
+
+3. IT Helpdesk SLA
+Critical incidents affecting production access or account lockouts are acknowledged within 30 minutes during business hours (09:00 to 19:00 IST, Monday to Friday). Standard hardware or access requests are fulfilled within 2 business days.
