@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 
 import chromadb
@@ -35,6 +36,25 @@ class VectorStore:
 
     def count(self) -> int:
         return self.collection.count()
+
+    def list_sources(self) -> dict[str, int]:
+        """Return a sorted mapping of indexed source filenames to their chunk counts."""
+        if self.count() == 0:
+            return {}
+
+        data = self.collection.get(include=["metadatas"])
+        metadatas = data.get("metadatas") or []
+        counts = Counter(str(meta.get("source", "unknown")) for meta in metadatas if meta)
+        return dict(sorted(counts.items()))
+
+    def delete_source(self, source: str) -> int:
+        """Delete all chunks belonging to a single source document."""
+        existing = self.collection.get(where={"source": source}, include=[])
+        ids = existing.get("ids") or []
+        if not ids:
+            return 0
+        self.collection.delete(ids=ids)
+        return len(ids)
 
     def upsert_chunks(self, chunks: list[Chunk]) -> int:
         """Store or update chunks, metadata, and IDs in ChromaDB."""
